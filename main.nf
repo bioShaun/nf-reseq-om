@@ -919,7 +919,7 @@ process snpEff_for_sample {
         mv raw_vcf/${sample_name}.raw.vcf.gz raw_vcf/${sample_name}.raw.split.vcf.gz
 
         python ${script_dir}/merge_vcf_chr_pd.py \\
-            --vcf-file raw_vcf/${sample_name}.raw.split.vcf \\
+            --vcf-file raw_vcf/${sample_name}.raw.split.vcf.gz \\
             --split-chr-inf ${params.merge_chr_bed} \\
             --outfile ${sample_name}.raw.vcf 
         bgzip ${sample_name}.raw.vcf 
