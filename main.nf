@@ -734,16 +734,21 @@ process snpEff_for_all {
         mv raw.vcf.gz raw.split.vcf.gz
         mv raw.vcf.gz.tbi raw.split.vcf.gz.tbi
 
-        python ${script_dir}/merge_wheat_vcf_chr.py \\
+        python ${script_dir}/merge_vcf_chr_pd.py \\
             --vcf-file raw.split.vcf.gz \\
-            --split-chr-inf ${params.merge_chr_bed} | bgzip > raw.vcf.gz 
+            --split-chr-inf ${params.merge_chr_bed} \\
+            --outfile raw.vcf            
+        bgzip raw.vcf
+        tabix --csi raw.vcf.gz
 
         mv hq.vcf.gz hq.split.vcf.gz
         mv hq.vcf.gz.tbi hq.split.vcf.gz.tbi
-
-        python ${script_dir}/merge_wheat_vcf_chr.py \\
+        python ${script_dir}/merge_vcf_chr_pd.py \\
             --vcf-file hq.split.vcf.gz \\
-            --split-chr-inf ${params.merge_chr_bed} | bgzip > hq.vcf 
+            --split-chr-inf ${params.merge_chr_bed} \\
+            --outfile hq.vcf 
+        bgzip hq.vcf
+        tabix --csi hq.vcf.gz
 
         java -Xmx10g -jar ${params.snpEff}/snpEff.jar \\
             -c ${params.snpEff}/snpEff.config \\
@@ -912,18 +917,23 @@ process snpEff_for_sample {
         workon work_py3      
 
         mv raw_vcf/${sample_name}.raw.vcf.gz raw_vcf/${sample_name}.raw.split.vcf.gz
-        gunzip -c raw_vcf/${sample_name}.raw.split.vcf.gz > raw_vcf/${sample_name}.raw.split.vcf
-        sh ${script_dir}/catSplitChrVCF.sh \\
-            raw_vcf/${sample_name}.raw.split.vcf \\
-            ${sample_name}.raw.vcf 
+
+        python ${script_dir}/merge_vcf_chr_pd.py \\
+            --vcf-file raw_vcf/${sample_name}.raw.split.vcf \\
+            --split-chr-inf ${params.merge_chr_bed} \\
+            --outfile ${sample_name}.raw.vcf 
+        bgzip ${sample_name}.raw.vcf 
+        tabix --csi ${sample_name}.raw.vcf.gz
 
         mv ${sample_name}.hq.vcf.gz ${sample_name}.hq.split.vcf.gz
         mv ${sample_name}.hq.vcf.gz.tbi ${sample_name}.hq.split.vcf.gz.tbi
 
-        gunzip -c ${sample_name}.hq.split.vcf.gz > ${sample_name}.hq.split.vcf
-        sh ${script_dir}/catSplitChrVCF.sh \\
-            ${sample_name}.hq.split.vcf \\
-            ${sample_name}.hq.vcf         
+        python ${script_dir}/merge_vcf_chr_pd.py \\
+            --vcf-file ${sample_name}.hq.split.vcf.gz \\
+            --split-chr-inf ${params.merge_chr_bed} \\
+            --outfile ${sample_name}.hq.vcf 
+        bgzip ${sample_name}.hq.vcf 
+        tabix --csi ${sample_name}.hq.vcf.gz
 
         java -Xmx10g -jar ${params.snpEff}/snpEff.jar \\
             -c ${params.snpEff}/snpEff.config \\
