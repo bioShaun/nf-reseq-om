@@ -1,0 +1,38 @@
+.header{
+	position:relative;
+	height:60px;
+	background-color:#54bb98;
+	/*box-shadow: 0 -1px 3px white inset;*/
+}
+.logo{
+	height:50px;
+	margin-top:5px;
+}
+
+.cpTitle{
+	position: absolute;
+	left:3%;
+	bottom:15px;
+	margin-top:0;
+	color:white;
+	font-size: 20px;
+	font-weight: 500;
+}
+
+.rTitle{
+	position: absolute;
+	left:40%;
+	bottom:15px;
+	margin-top:0;
+	color:white;
+	font-size: 18px;
+	font-weight: 500;
+}
+.cpName{
+	position: absolute;
+	bottom:5px;
+	right:10px;
+}
+.cpName a{
+	color:white;
+}
