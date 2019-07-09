@@ -25,20 +25,19 @@ def merged_chr_size_inf(split_bed_df):
 
 
 def merge_vcf_split_chr(vcf_file, split_chr_inf):
-    split_bed_df = pd.read_table(split_chr_inf,
-                                 index_col=3,
-                                 header=None,
-                                 names=['chrom', 'start', 'end'])
+    split_bed_df = pd.read_csv(split_chr_inf,
+                               index_col=3,
+                               header=None,
+                               names=['chrom', 'start', 'end'],
+                               sep='\t')
     merge_chr_size_str = merged_chr_size_inf(split_bed_df)
     vcf_file = PurePath(vcf_file)
     is_gz_file = vcf_file.suffix == '.gz'
 
     if is_gz_file:
         split_vcf_inf = bgzf.BgzfReader(vcf_file)
-        # cat_vcf_inf = bgzf.BgzfWriter(merge_chr_vcf_file)
     else:
         split_vcf_inf = open(vcf_file)
-        # cat_vcf_inf = open(merge_chr_vcf_file, 'w')
 
     chr_header_flag = 1
     # TODO add merge chr command information in vcf header
@@ -49,7 +48,7 @@ def merge_vcf_split_chr(vcf_file, split_chr_inf):
         # split chrom size -> merged chrom size
         if eachline.startswith('##contig='):
             if chr_header_flag:
-                print('{}'.format(merge_chr_size_str))
+                print(merge_chr_size_str)
                 chr_header_flag = 0
             continue
         elif chrom in split_bed_df.index:
@@ -57,9 +56,7 @@ def merge_vcf_split_chr(vcf_file, split_chr_inf):
             eachline_inf[0] = new_chrom
             eachline_inf[1] = str(offset + int(eachline_inf[1]))
             eachline = '\t'.join(eachline_inf)
-        # cat_vcf_inf.write(eachline)
         print(eachline)
-
     split_vcf_inf.close()
 
 
