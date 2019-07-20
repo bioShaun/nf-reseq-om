@@ -46,7 +46,7 @@ def extractAlleFreq(lists):
     return(alle_freq)
 
 
-vcf_file = gzip.open(args.vcf_file)
+vcf_file = gzip.open(args.vcf_file, 'rt')
 out_table = open(args.out_name, "w")
 
 # find header line
@@ -66,7 +66,6 @@ while 1:
     if not lines:
         break
     for line in lines:
-        line = line.decode()
         line_column = line.strip().split("\t")
         line_header = [line_column[i] for i in [0, 1, 3, 4]]
         Alle_number = [str(line_column[4].count(",") + 1)]
