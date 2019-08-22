@@ -719,7 +719,8 @@ process snpEff_for_all {
     file "hq.vcf.gz" into final_all_hq_vcf
     file "hq.vcf.gz.*" into final_all_hq_vcf_idx
     file "hq.vcf.stat.csv"
-    file "hq.vcf.stat.html" 
+    file "hq.vcf.stat.html"
+    file "hq.vcf.stat.genes.txt"
     file "hq.ann.vcf.gz" into all_sample_anno_vcf, all_sample_anno_split_vcf
     file "hq.ann.vcf.gz.*" into all_sample_anno_vcf_idx, all_sample_anno_split_vcf_idx
     
@@ -904,6 +905,7 @@ process snpEff_for_sample {
     file "${sample_name}.hq.vcf.gz.*"
     file "${sample_name}.hq.vcf.stat.csv" into sample_vcf_stats
     file "${sample_name}.hq.vcf.stat.html"
+    file "${sample_name}.hq.vcf.stat.genes.txt"
     file "${sample_name}.ann.vcf.gz" into single_sample_anno_vcf
     file "${sample_name}.ann.vcf.gz.*" into single_sample_anno_vcf_idx
     
