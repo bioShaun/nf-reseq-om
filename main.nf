@@ -143,8 +143,6 @@ process fastp {
 
     tag "${name}"
 
-    module "fastp/0.19.5"
-
     publishDir "${params.outdir}/fastp_trimmed_reads/${name}", mode: 'copy'
 
     input:
@@ -315,8 +313,6 @@ process sort_bam {
 process reads_cov_stats {
 
     tag "${sample_name}"
-
-    module "samtools/1.9"
 
     publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
 
@@ -727,11 +723,6 @@ process snpEff_for_all {
     script:
     if (params.merge_chr_bed)
         """
-        #!/bin/bash
-
-        source /usr/bin/virtualenvwrapper.sh
-        workon work_py3
-
         mv raw.vcf.gz raw.split.vcf.gz
         mv raw.vcf.gz.tbi raw.split.vcf.gz.tbi
 
@@ -751,7 +742,7 @@ process snpEff_for_all {
         bgzip hq.vcf
         tabix --csi hq.vcf.gz
 
-        java -Xmx10g -jar ${params.snpEff}/snpEff.jar \\
+        snpEff -Xmx10g \\
             -c ${params.snpEff}/snpEff.config \\
             -csvStats hq.vcf.stat.csv \\
             -htmlStats hq.vcf.stat.html \\
@@ -763,7 +754,7 @@ process snpEff_for_all {
         """
     else
         """
-        java -Xmx10g -jar ${params.snpEff}/snpEff.jar \\
+        snpEff -Xmx10g \\
             -c ${params.snpEff}/snpEff.config \\
             -csvStats hq.vcf.stat.csv \\
             -htmlStats hq.vcf.stat.html \\
@@ -913,11 +904,6 @@ process snpEff_for_sample {
     sample_name = vcf.baseName - '.hq.vcf'
     if (params.merge_chr_bed)
         """
-        #!/bin/bash
-
-        source /usr/bin/virtualenvwrapper.sh
-        workon work_py3      
-
         mv raw_vcf/${sample_name}.raw.vcf.gz raw_vcf/${sample_name}.raw.split.vcf.gz
 
         python ${script_dir}/merge_vcf_chr_pd.py \\
@@ -937,7 +923,7 @@ process snpEff_for_sample {
         bgzip ${sample_name}.hq.vcf 
         tabix --csi ${sample_name}.hq.vcf.gz
 
-        java -Xmx10g -jar ${params.snpEff}/snpEff.jar \\
+        snpEff -Xmx10g \\
             -c ${params.snpEff}/snpEff.config \\
             -csvStats ${sample_name}.hq.vcf.stat.csv \\
             -htmlStats ${sample_name}.hq.vcf.stat.html \\
@@ -949,7 +935,7 @@ process snpEff_for_sample {
         """
     else
         """
-        java -Xmx10g -jar ${params.snpEff}/snpEff.jar \\
+        snpEff -Xmx10g \\
             -c ${params.snpEff}/snpEff.config \\
             -csvStats ${sample_name}.hq.vcf.stat.csv \\
             -htmlStats ${sample_name}.hq.vcf.stat.html \\
@@ -1012,11 +998,6 @@ process snp_summary {
 
     script:
     """
-    #!/bin/bash
-
-    source /usr/bin/virtualenvwrapper.sh
-    workon work_py3 
-
     python ${script_dir}/extract_fastp_info.py \\
         --fastp-dir fastp \\
         --outdir reads_qc
