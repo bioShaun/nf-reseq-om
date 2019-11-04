@@ -28,6 +28,7 @@ def helpMessage() {
       --data_type                   reseq, exome or rnaseq data
       --merge_chr_bed               bedfile to guide merge split chr information
       --aligner                     rnaseq mapping software star or hisat
+      --skip_merge                  skip merge vcf for each sample
 
     """.stripIndent()
 }
@@ -76,6 +77,7 @@ params.snpEff = '/public/software/snpEff/snpEffv4.3T/'
 params.snpEff_db = false
 params.data_type = 'exome'
 params.merge_chr_bed = false
+params.skip_merge = false
 
 // reference files
 cds_bed_file = file(params.cds_bed)
@@ -143,7 +145,8 @@ process fastp {
 
     tag "${name}"
 
-    publishDir "${params.outdir}/fastp_trimmed_reads/${name}", mode: 'copy'
+    publishDir "${params.outdir}/fastp_trimmed_reads/${name}", mode: 'copy',
+        saveAs: {filename -> filename.indexOf(".fq.gz") > 0 ? null: "$filename"}
 
     input:
     set name, file(reads) from raw_fq_files
@@ -183,7 +186,7 @@ if (params.data_type == 'rnaseq') {
             file star_index_file from star_index_file
 
             output:
-            file "${sample_name}.Aligned.out.bam" into unsort_bam
+            file "${sample_name}.bam" into unsort_bam
 
             cpus = 80
 
@@ -198,7 +201,10 @@ if (params.data_type == 'rnaseq') {
                 --twopassMode Basic \\
                 --outSAMtype BAM Unsorted  \\
                 --readFilesCommand zcat \\
+                --outSAMattrRGline  ID:${sample_name} CN:TCuni SM:${sample_name} LB:${sample_name} PI:350 PL:Illumina \\
                 --outFileNamePrefix ${sample_name}.
+
+            mv ${sample_name}.Aligned.out.bam ${sample_name}.bam
             """
 
         }
@@ -248,7 +254,7 @@ if (params.data_type == 'rnaseq') {
     process bwa_mapping {
         tag "${sample_name}"
 
-        publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
+        // publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
 
         input:
         file reads from trimmed_reads
@@ -285,7 +291,7 @@ if (params.data_type == 'rnaseq') {
 process sort_bam {
     tag "${sample_name}"
 
-    publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
+    // publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
 
     input:
     file bam from unsort_bam
@@ -355,7 +361,7 @@ process reads_cov_stats {
 process bam_remove_duplicate {
     tag "${sample_name}"
 
-    publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
+    // publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
 
     input:
     file bam from to_rmdup_bam
@@ -378,120 +384,122 @@ process bam_remove_duplicate {
     """
 }
 
-/*
-* Split N
-*/
 
-process SplitNCigarReads {
 
-    tag "${sample_name}"
+if (params.data_type == 'rnaseq') {
+
+    /*
+    * Split N
+    */
+
+    process SplitNCigarReads {
+
+        tag "${sample_name}"
+            
+        input:
+        file bam from br_rmdup_bam
+        file fasta from genome_fa
+        file fa_dict from genome_dict
+        file fai_idx from genome_fai
         
-    input:
-    file bam from br_rmdup_bam
-    file fasta from genome_fa
-    file fa_dict from genome_dict
-    file fai_idx from genome_fai
-    
-    output:
-    file "${sample_name}.SplitN.bam" into splitn_bam
+        output:
+        file "${sample_name}.qc.bam" into qc_bam, sample_bam
+        file "${sample_name}.qc.bai" into qc_bam_idx
 
-    cpus = 8
-    
-    script:
-    sample_name = bam.baseName - '.rmdup'
-
-    if (params.data_type == 'rnaseq')
+        cpus = 8
+        
+        script:
+        sample_name = bam.baseName - '.rmdup'
 
         """
         gatk SplitNCigarReads \\
             --reference ${fasta} \\
             --input ${bam} \\
-            --output ${sample_name}.SplitN.bam \\
+            --output ${sample_name}.qc.bam \\
             --max-reads-in-memory 1000000  \\
         """
-    else
+    } 
+
+} else {
+    /*
+    * bam BaseRecalibrator
+    */
+    process bam_BaseRecalibrator {
+        tag "${sample_name}"
+
+        // publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
+
+        when:
+        params.known_vcf    
+
+        input:
+        file bam from br_rmdup_bam
+        file refer from genome_fa
+        file refer_fai from genome_fai
+        file refer_dict from genome_dict
+        file known_vcf from known_vcf
+        file known_vcf_index from known_vcf_index
+    
+        output:
+        file "${sample_name}.recal.table" into recal_table
+        file bam into bqsr_rmdup_bam
+    
+        cpus = 8
+
+        script:
+        sample_name = bam.baseName - '.rmdup'
         """
-        ln -s ${bam} ${sample_name}.SplitN.bam
+        gatk BaseRecalibrator \\
+            --reference ${refer} \\
+            --input ${bam} \\
+            --output ${sample_name}.recal.table \\
+            --known-sites ${known_vcf}
         """
-} 
+    }
 
+    /*
+    * bam ApplyBQSR
+    */
+    process bam_ApplyBQSR {
+        tag "${sample_name}"
 
+        publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
 
-/*
-* bam BaseRecalibrator
-*/
-process bam_BaseRecalibrator {
-    tag "${sample_name}"
+        when:
+        params.known_vcf
 
-    publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
+        input:
+        file bam from bqsr_rmdup_bam
+        file recal_table_file from recal_table
+        file refer from genome_fa
+        file refer_fai from genome_fai
+        file refer_dict from genome_dict
+    
+        output:
+        file "${sample_name}.qc.bam" into qc_bam, sample_bam
+        file "${sample_name}.qc.bai" into qc_bam_idx
+    
+        cpus = 8
 
-    when:
-    params.known_vcf    
+        script:
+        sample_name = bam.baseName - '.rmdup'
+        """       
+        gatk ApplyBQSR \\
+            --bqsr-recal-file ${recal_table_file} \\
+            --input ${bam} \\
+            --output ${sample_name}.qc.bam \\
+            --read-filter AmbiguousBaseReadFilter \\
+            --read-filter MappingQualityReadFilter \\
+            --read-filter NonZeroReferenceLengthAlignmentReadFilter \\
+            --read-filter ProperlyPairedReadFilter \\
+            --minimum-mapping-quality 30 
 
-    input:
-    file bam from splitn_bam
-    file refer from genome_fa
-    file refer_fai from genome_fai
-    file refer_dict from genome_dict
-    file known_vcf from known_vcf
-    file known_vcf_index from known_vcf_index
-  
-    output:
-    file "${sample_name}.recal.table" into recal_table
-    file bam into bqsr_rmdup_bam
-  
-    cpus = 8
+        """
+    }
 
-    script:
-    sample_name = bam.baseName - '.SplitN'
-    """
-    gatk BaseRecalibrator \\
-        --reference ${refer} \\
-        --input ${bam} \\
-        --output ${sample_name}.recal.table \\
-        --known-sites ${known_vcf}
-    """
 }
 
-/*
-* bam ApplyBQSR
-*/
-process bam_ApplyBQSR {
-    tag "${sample_name}"
 
-    publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
-
-    when:
-    params.known_vcf
-
-    input:
-    file bam from bqsr_rmdup_bam
-    file recal_table_file from recal_table
-    file refer from genome_fa
-    file refer_fai from genome_fai
-    file refer_dict from genome_dict
-  
-    output:
-    file "${sample_name}.bqsr.bam" into bqsr_bam, sample_bam
-    file "${sample_name}.bqsr.bai" into bqsr_bam_idx
-  
-    cpus = 8
-
-    script:
-    sample_name = bam.baseName - '.SplitN'
-    """       
-    gatk ApplyBQSR \\
-        --bqsr-recal-file ${recal_table_file} \\
-        --input ${bam} \\
-        --output ${sample_name}.bqsr.bam \\
-        --read-filter AmbiguousBaseReadFilter \\
-        --read-filter MappingQualityReadFilter \\
-        --read-filter NonZeroReferenceLengthAlignmentReadFilter \\
-        --read-filter ProperlyPairedReadFilter \\
-        --minimum-mapping-quality 30 
-
-    """
-}
 
 /*
 *  GATK HaplotypeCaller
@@ -503,7 +511,7 @@ process gatk_HaplotypeCaller {
     params.known_vcf        
 
     input:
-    file bam from bqsr_bam
+    file bam from qc_bam
     each file(bed) from haplotype_beds
     file refer from genome_fa
     file refer_fai from genome_fai
@@ -516,7 +524,8 @@ process gatk_HaplotypeCaller {
     cpus = 8
 
     script:
-    sample_name = bam.baseName - '.bqsr'
+    sample_name = bam.baseName - '.qc'
+
     chr_name = bed.baseName
     """
     gatk HaplotypeCaller  \\
@@ -542,7 +551,7 @@ process gatk_CombineGVCFs {
     publishDir "${params.outdir}/gvcf/by_chr/${chr_name}", mode: 'copy'
 
     when:
-    params.known_vcf    
+    params.known_vcf 
 
     input:
     file ('gvcf/*') from chr_gvcf.collect()
@@ -561,7 +570,7 @@ process gatk_CombineGVCFs {
     """
     ls gvcf/*.${chr_name}.hc.g.vcf.gz > ${chr_name}.gvcf.list
 
-    gatk CombineGVCFs \\
+    /public/software/GATK/gatk-4.0.10.1/gatk CombineGVCFs \\
     	--output ${chr_name}.g.vcf.gz \\
 	    --reference ${refer} \\
 	    --variant ${chr_name}.gvcf.list
@@ -577,7 +586,7 @@ process gatk_GenotypeGVCFs {
     publishDir "${params.outdir}/vcf/by_chr/${chr_name}", mode: 'copy'
 
     when:
-    params.known_vcf    
+    params.known_vcf && !params.skip_merge
 
     input:
     file gvcf from merged_sample_gvcf
@@ -610,7 +619,7 @@ process gatk_GenotypeGVCFs {
 process concat_vcf {
 
     when:
-    params.known_vcf    
+    params.known_vcf && !params.skip_merge
 
     input:
     file ('vcf/*') from merged_sample_vcf.collect()
@@ -638,7 +647,7 @@ process concat_vcf {
 process vcf_base_qual_filter {
 
     when:
-    params.known_vcf    
+    params.known_vcf && !params.skip_merge
 
     input:
     file raw_vcf from all_sample_raw_vcf
@@ -669,7 +678,7 @@ process snp_gatk_table {
     publishDir "${params.outdir}/vcf/all", mode: 'copy'
 
     when:
-    params.known_vcf && params.snpEff_db
+    params.known_vcf && params.snpEff_db && !params.skip_merge
 
     input:
     file vcf from all_hq_vcf_table
@@ -701,7 +710,7 @@ process snpEff_for_all {
     publishDir "${params.outdir}/vcf/all", mode: 'copy'
 
     when:
-    params.known_vcf && params.snpEff_db
+    params.known_vcf && params.snpEff_db && !params.skip_merge
 
     input:
     file raw_vcf from m_all_sample_raw_vcf
@@ -720,6 +729,8 @@ process snpEff_for_all {
     file "hq.ann.vcf.gz" into all_sample_anno_vcf, all_sample_anno_split_vcf
     file "hq.ann.vcf.gz.*" into all_sample_anno_vcf_idx, all_sample_anno_split_vcf_idx
     
+    cpus = 8  
+
     script:
     if (params.merge_chr_bed)
         """
@@ -747,6 +758,7 @@ process snpEff_for_all {
             -csvStats hq.vcf.stat.csv \\
             -htmlStats hq.vcf.stat.html \\
             -v ${params.snpEff_db}  \\
+            -quiet \\
             hq.vcf.gz \\
             | bgzip > hq.ann.vcf.gz
         
@@ -759,6 +771,7 @@ process snpEff_for_all {
             -csvStats hq.vcf.stat.csv \\
             -htmlStats hq.vcf.stat.html \\
             -v ${params.snpEff_db}  \\
+            -quiet \\
             ${vcf} \\
             | bgzip > hq.ann.vcf.gz
         
@@ -795,7 +808,7 @@ process gatk_CombineGVCFs_by_sample {
     cpus = 8
     
     script:
-    sample_name = bam.baseName - '.bqsr'
+    sample_name = bam.baseName - '.qc'
     """
     ls gvcf/${sample_name}.*.hc.g.vcf.gz > ${sample_name}.gvcf.list
 
@@ -899,6 +912,8 @@ process snpEff_for_sample {
     file "${sample_name}.hq.vcf.stat.genes.txt"
     file "${sample_name}.ann.vcf.gz" into single_sample_anno_vcf
     file "${sample_name}.ann.vcf.gz.*" into single_sample_anno_vcf_idx
+
+    cpus = 10
     
     script:
     sample_name = vcf.baseName - '.hq.vcf'
@@ -928,6 +943,7 @@ process snpEff_for_sample {
             -csvStats ${sample_name}.hq.vcf.stat.csv \\
             -htmlStats ${sample_name}.hq.vcf.stat.html \\
             -v ${params.snpEff_db}  \\
+            -quiet \\
             ${sample_name}.hq.vcf.gz \\
             | bgzip > ${sample_name}.ann.vcf.gz
 
@@ -940,6 +956,7 @@ process snpEff_for_sample {
             -csvStats ${sample_name}.hq.vcf.stat.csv \\
             -htmlStats ${sample_name}.hq.vcf.stat.html \\
             -v ${params.snpEff_db}  \\
+            -quiet \\
             ${vcf} \\
             | bgzip > ${sample_name}.ann.vcf.gz
 
@@ -955,7 +972,7 @@ process snp_inhouse_table {
     publishDir "${params.outdir}/vcf/all", mode: 'copy'
 
     when:
-    params.known_vcf && params.snpEff_db
+    params.known_vcf && params.snpEff_db && !params.skip_merge
 
     input:
     file vcf from all_sample_anno_vcf
