@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<title>TCuni</title>
+	<link rel="stylesheet" href="../css/main.css">
+	<link rel="stylesheet" href="../css/header.css">
+	<link rel="stylesheet" href="../css/navBar.css">
+	<link rel="stylesheet" href="../css/content.css">
+	<link rel="stylesheet" href="../statics/bootstrap.min.css">
+	<link rel="stylesheet" href="../statics/font-awesome-4.3.0/css/font-awesome.min.css">
+	<script src="../statics/jquery-3.3.1.slim.min.js"></script>
+	<script src="../statics/popper.min.js"></script>
+	<script src="../statics/bootstrap.min.js"></script>
+	<script src="../js/main.js"></script>
+</head>
+
+<body>
+	<div class="new-header">
+			<nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+				<a class="navbar-brand" href="../index.html#part3-1">TCuni</a>
+				<div class="collapse navbar-collapse" id="navbarNav">
+					<ul class="navbar-nav">
+						<li class="nav-item dropdown">
+							<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+							分析结果
+							</a>
+							<div class="dropdown-menu" aria-labelledby="navbarDropdown">
+								<a class="dropdown-item" href="../index.html#part3-1">测序数据统计</a>
+								<a class="dropdown-item" href="../index.html#part4-1">参考序列比对</a>
+								<a class="dropdown-item" href="../index.html#part5">SNP分析</a>
+							</div>
+							</li>				
+							<li class="nav-item dropdown">
+								<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+								项目流程
+								</a>
+								<div class="dropdown-menu" aria-labelledby="navbarDropdown">
+									<a class="dropdown-item" href="#part1">简介</a>
+									<a class="dropdown-item" href="#part-lab">实验流程</a>
+									<a class="dropdown-item" href="#part2">数据分析流程</a>
+								</div>
+								</li>				
+								<li class="nav-item dropdown">
+										<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+										帮助及说明
+										</a>
+										<div class="dropdown-menu" aria-labelledby="navbarDropdown">
+											<a class="dropdown-item" href="help.html#part-lib">建库测序</a>
+											<a class="dropdown-item" href="help.html#part-dataqc">数据质控</a>
+											<a class="dropdown-item" href="help.html#part-analysis">分析流程</a>
+											<a class="dropdown-item" href="help.html#part-term">名词解释</a>
+										</div>
+								</li>		
+					</ul>
+				</div>
+				</nav>
+	</div>
+
+	<div class="container">
+			<!-- part1 -->
+			<div class="part" id="part1">
+					<h3 >简介</h3>
+					<p class="haveBg" style="padding-left:30px;text-indent:0">
+						获得样品后，如下图所示流程进行试验和数据处理，得到最终的分析结果<br>
+						1) 对样品DNA进行随机打断建库.<br/> 
+						2) 对捕获的文库使用Illumina测序平台进行测序.<br/> 
+						3) 获得下机数据后使用GTAK最佳实践流程进行数据的标准call SNP分析得到vcf文件. <br>
+						4) 使用个性化分析脚本进行数据的统计分析.<br/>
+					</p>
+					<div class="imgWrap">
+						<a href="../imgs/p1.png"><img src="../imgs/p1.png" alt="项目流程" class="maxWidth" style="max-height:220px"></a>
+						<h6>图1：项目流程</h6>
+					</div>
+			</div>
+		<!-- part3 -->
+			<div class="part" id="part-lab">
+				<h3>实验流程</h3>
+				<p class="haveBg" style="padding-left:30px;text-indent:0">提取每个个体的基因组DNA并随机打断，电泳回收所需长度的DNA片段，并加上接头进行cluster制备，最后在Hiseq平台上机测序。</p>
+				<div class="imgWrap">
+					<a href="../imgs/p2.png"><img src="../imgs/p2.png" alt="生物信息分析流程" class="maxWidth" style="max-width:300px"></a>
+					<h6>图2：建库流程</h6>
+				</div>
+			</div>
+			<!-- part2 -->
+			<div class="part" id="part2">
+				<h3>数据分析流程</h3>
+				<p class="haveBg" style="padding-left:30px;text-indent:0">
+					运用BWA软件将测序得到的reads与参考基因组序列进行比对。
+					根据比对结果，计算出相对于参考基因组的测序深度和覆盖度。
+					所测基因组的SNPs、InDels和结构变异SVs分别用 GATK、samtools、breakdancer等软件进行检测。
+					当有参考基因组的注释文件，可以分别在SNP、InDel和SV的数据集的基础上进行注释。</p>
+				<p class="haveBg" style="padding-left:30px;text-indent:0">
+					我们采用 <a href="https://www.broadinstitute.org" target="_blank">Broad Institute</a> 开发的变异检测流程 
+					<a href="https://www.broadinstitute.org/gatk/" target="_blank">GATK</a>，参考 GATK 的推荐流程 (<a href="https://software.broadinstitute.org/gatk/best-practices/bp_3step.php?case=GermShortWGS"
+					target="_blank">Best Practices for Germline SNP & Indel Discovery in Whole Genome and Exome Sequence</a>)， 
+					对过滤后的测序序列进行参考基因组的比对分析.
+					主要流程如下：<br/> (1) Map to reference (<a href="https://github.com/lh3/bwa"
+					target="_blank">BWA</a> default parameters)</br>
+					(2) Mark Duplicates (<a href="http://gatkforums.broadinstitute.org/gatk/discussion/2799#top">Picard</a>)</br>
+					(3) Realign Indels (<a href="http://broadinstitute.github.io/picard/" target="_blank">Picard</a>)</br>
+					(4) Recalibrate Base (<a href="http://broadinstitute.github.io/picard/" target="_blank">Picard</a>)</br>
+					(5) Call Variants (<a href="https://www.broadinstitute.org/gatk/" target="_blank">GATK</a>)</br>
+					(6) VCF Quality filter (<a href="https://www.broadinstitute.org/gatk/" target="_blank">GATK</a> standard)</br>
+					(7) Annotating variants (<a href="http://snpeff.sourceforge.net/" target="_blank">snpEff</a>/Python Script)
+				</p>
+				<div class="imgWrap">
+					<a href="../imgs/BP_workflow_3.6.png"><img src="../imgs/BP_workflow_3.6.png" alt="分析流程" class="maxWidth" style="max-height:520px"></a>
+					<h6>图3：数据分析流程</h6>
+				</div>
+			</div>
+	</div>
+</body>
+
+</html>

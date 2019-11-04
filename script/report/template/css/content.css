@@ -1,3 +1,4 @@
+
 .content{
 	color:#666;
 }
@@ -31,11 +32,15 @@
 /*内容里边的样式*/
 .part{
 	/*border-right:1px solid #eee;*/
+	margin-top: -60px; 
+	padding-top: 120px;
 }
 .part h3{
 	padding:10px;
-	color:#54bb98;
 	border-bottom: 1px solid #c1c1c1;
+	font-size: 20px;
+	color: black;
+	font-weight: bold;	
 }
 .part h3 i{
 	font-size: 16px;
@@ -43,8 +48,10 @@
 }
 .part h4{
 	color:#428BCA;
-	padding-left:35px;
+	padding: 10px;
+	/*padding-left:35px;*/
 	padding-top:10px;
+	font-size: 18px;
 }
 .haveBg{
 	text-indent: 30px;
@@ -56,14 +63,14 @@
 .imgWrap{
 	text-align: center;
 	padding-top:10px;
-	border-top:1px solid #e9e9e9;
-	border-bottom:1px solid #e9e9e9;
+	/* border-top:1px solid #e9e9e9;
+	border-bottom:1px solid #e9e9e9; */
 }
 .imgWrap h6{
 	margin-top:20px;
 }
 .partP{
-	border-bottom: 1px dotted #ccc;
+	/* border-bottom: 1px dotted #ccc; */
 	padding-bottom:10px;
 }
 /*imgList样式*/
@@ -239,11 +246,12 @@
 	border-top:1px dotted #ccc;
 }
 
-.helpContentTitle{
+.ContentTitle{
 	margin-top:50px;
-	border-bottom: 2px dotted #54bb98;
+	margin-bottom: 50px;
+	/*border-bottom: 2px dotted #54bb98;*/
 }
-.helpContentTitle h3{
+.ContentTitle h3{
 	text-align: center;
 	color:#777;
 }
@@ -259,4 +267,22 @@
 	margin:0 auto;
 	margin-left:30px;
 
+}
+
+/* to adjust anchor offset by fixed top navbar */
+.section {
+    padding-top: 60px;
+    margin-top: -60px;
+}
+
+/* for carousel img size */
+.carousel-item img{
+	max-width: 100%;
+	height:auto;
+}
+
+.center-vertical {
+	position:relative;
+	top:40%;
+	transform:translateY(-100%);
 }
