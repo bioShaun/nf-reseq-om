@@ -6,6 +6,7 @@ def helpMessage() {
     Usage:
 
     References If not specified in the configuration file or you wish to overwrite any of the references.
+      --genome                      Name of Genomes reference
       --fasta                       Path to reference fasta
       --gtf                         Path to reference gtf
       --bwa_index                   Path to reference bwa index
@@ -58,26 +59,24 @@ def check_ref_exist = {file_path, file_type ->
     }
 }
 
+// Check if genome exists in the config file
+if (params.genomes && params.genome && !params.genomes.containsKey(params.genome)) {
+    exit 1, "The provided genome '${params.genome}' is not available in the Genomes file. Currently the available genomes are ${params.genomes.keySet().join(", ")}"
+}
+
+
 // default parameters
-params.fasta = false
-params.gtf = false
-params.aligner = 'hisat'
-params.bwa_index = false
+params.fasta = params.genome ? params.genomes[ params.genome ].fasta ?: false : false
+params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
+params.bwa_index = params.genome ? params.genomes[ params.genome ].bwa_index ?: false : false
+params.star_index = params.genome ? params.genomes[ params.genome ].star_index ?: false : false
 params.hisat_index = false
-params.star_index = false
-params.reads = false
-params.cds_bed = false
-params.exon_bed = false
-params.padded_bed = false
-params.known_vcf = false
-params.split_bed = false
-params.quality = 30
-params.depth = 5
-params.snpEff = '/public/software/snpEff/snpEffv4.3T/'
-params.snpEff_db = false
-params.data_type = 'exome'
-params.merge_chr_bed = false
-params.skip_merge = false
+params.cds_bed = params.genome ? params.genomes[ params.genome ].cds_bed ?: false : false
+params.exon_bed = params.genome ? params.genomes[ params.genome ].exon_bed ?: false : false
+params.padded_bed = params.genome ? params.genomes[ params.genome ].padded_bed ?: false : false
+params.split_bed = params.genome ? params.genomes[ params.genome ].split_bed ?: false : false
+params.snpEff_db = params.genome ? params.genomes[ params.genome ].snpEff_db ?: false : false
+params.merge_chr_bed = params.genome ? params.genomes[ params.genome ].merge_chr_bed ?: false : false
 
 // reference files
 cds_bed_file = file(params.cds_bed)
@@ -181,6 +180,8 @@ if (params.data_type == 'rnaseq') {
             tag "${sample_name}"
             publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
 
+            queue 'bm'
+
             input:
             file reads from trimmed_reads
             file star_index_file from star_index_file
@@ -188,7 +189,7 @@ if (params.data_type == 'rnaseq') {
             output:
             file "${sample_name}.bam" into unsort_bam
 
-            cpus = 80
+            cpus = 40
 
             script:
             sample_name = reads[0].toString() - '.trimmed.R1.fq.gz'
