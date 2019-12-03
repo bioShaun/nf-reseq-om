@@ -198,7 +198,7 @@ if (params.data_type == 'rnaseq') {
             STAR \\
                 --genomeDir ${star_index_file} \\
                 --readFilesIn ${reads}  \\
-                --runThreadN 16 \\
+                --runThreadN 40 \\
                 --twopassMode Basic \\
                 --outSAMtype BAM Unsorted  \\
                 --readFilesCommand zcat \\
