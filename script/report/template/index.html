@@ -89,7 +89,7 @@
 					<h3>原始数据质量控制</h3>
 					<!-- part3-1 -->
 					<div class="partP">
-						<!-- <p class="haveBg" style="padding-left:30px;text-indent:0">本项目中，我们构建了6个DNA文库，使用Illumila Nova-seq平台进行测序，共获得了85.33G的总数据量，平均每个样品14.22G</p> -->
+						<p>获得测序序列后，我们使用 fastp 对所有的样品的测序数据进行数据质控。以下表格展示了本次测序数据基本信息。</p>
 
 						<div>
 							<table class="table table-striped table-hover">
@@ -111,7 +111,8 @@
 								</tbody>
 							</table>
 						</div>
-						<!-- <div class="imgWrap">
+						<!--
+						 <div class="imgWrap">
 						<a href="imgs/reads_quality.bar.report.png"><img src="imgs/reads_quality.bar.report.png" alt="reads_quality" class="maxWidth" style="max-width:600px"></a>
 						<h6> 测序序列质量值分布图</h6>
 					</div>
@@ -134,7 +135,7 @@
 
 					<!-- part4-1 -->
 					<div class="partP">
-						<!-- <p class="haveBg" style="padding-left:30px;text-indent:0">本项目中，我们使用 <a href="http://rice.plantbiology.msu.edu/index.shtml"> Os-Nipponbare-Reference-IRGSP-1.0 Release 7</a> 为参考基因组，基因组大小为364M（参考序列中不含N）。</p> -->
+						<p>此部分展示了测序数据比对到基因组的情况。我们使用 bwa 软件，将测序获得的 reads 比对到基因组, 以下图表展示了比对结果。</p>
 						<div>
 							<table class="table table-striped table-hover">
 								<thead class="thead-dark">
@@ -163,6 +164,16 @@
 							<h6> Reads 与参考基因比对情况柱状图</h6>
 
 						</div>
+						{% if exon_cov_plot %}
+						<div class="imgWrap">
+
+
+							<a href="imgs/Reads_coverage_exon.png"><img src="imgs/Reads_coverage_exon.png" alt="外显子区域 reads 覆盖"
+									class="maxWidth" style="max-width:600px"></a>
+							<h6> Reads 在外显子区域覆盖分布</h6>
+
+						</div>
+						{% endif %}
 
 					</div>
 

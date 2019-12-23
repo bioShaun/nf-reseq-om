@@ -143,10 +143,10 @@ def exom_report(result_dir, proj_name, report_dir=None):
     #     plot2report(genome_cov_plot, report_plot_path, 'genome_cov_plot')
     # )
 
-    # cds_cov_plot = result_dir / 'plot/alignment/Reads_coverage_cds.png'
-    # display_dictionary.update(
-    #     plot2report(cds_cov_plot, report_plot_path, 'cds_cov_plot')
-    # )
+    exon_cov_plot = result_dir / 'plot/alignment/Reads_coverage_exon.png'
+    display_dictionary.update(
+        plot2report(exon_cov_plot, report_plot_path, 'exon_cov_plot')
+    )
 
     variant_summary_plot = result_dir / \
         'plot/variants/Variant_stats_summary.png'
