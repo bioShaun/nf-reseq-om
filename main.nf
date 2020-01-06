@@ -30,6 +30,9 @@ def helpMessage() {
       --merge_chr_bed               bedfile to guide merge split chr information
       --aligner                     rnaseq mapping software star or hisat
       --skip_merge                  skip merge vcf for each sample
+      --run_fastp                   run pipeline to fastp end
+      --run_align                   run pipeline to alignment end
+      --run_snp                     run whole snp pipeline
 
     """.stripIndent()
 }
@@ -78,6 +81,7 @@ params.split_bed = params.genome ? params.genomes[ params.genome ].split_bed ?: 
 params.snpEff_db = params.genome ? params.genomes[ params.genome ].snpEff_db ?: false : false
 params.merge_chr_bed = params.genome ? params.genomes[ params.genome ].merge_chr_bed ?: false : false
 
+
 // reference files
 cds_bed_file = file(params.cds_bed)
 exon_bed_file = file(params.exon_bed)
@@ -85,6 +89,7 @@ genome_fa = file(params.fasta)
 genome_path = genome_fa.getParent()
 genome_fai = file("${params.fasta}.fai")
 genome_dict = file("${genome_path}/${genome_fa.baseName}.dict")
+
 
 if (params.known_vcf) {
     known_vcf = file(params.known_vcf)
@@ -136,6 +141,25 @@ Channel
     .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\n!" }
     .set { raw_fq_files }
 
+
+// pipeline control params
+
+run_fastp = params.run_fastp
+run_align = params.run_align
+run_snp = params.run_snp
+
+if (run_snp) {
+    run_align = true
+}
+
+if (run_align) {
+    run_fastp = true
+}
+
+if (! run_fastp) {
+    exit 1, "Nothing to run! One of --run_fastp, --run_align, --run_snp is needed! "
+}
+
 /*
  * Fastp
  */
@@ -143,6 +167,8 @@ Channel
 process fastp {
 
     tag "${name}"
+
+    cpus = 4
 
     publishDir "${params.outdir}/fastp_trimmed_reads/${name}", mode: 'copy',
         saveAs: {filename -> filename.indexOf(".fq.gz") > 0 ? null: "$filename"}
@@ -155,7 +181,8 @@ process fastp {
     file "${name}.json" into fastp_json
     file "${name}.html" into fastp_html
 
-    cpus = 4
+    when:
+    run_fastp
 
     script:
     """
@@ -169,16 +196,41 @@ process fastp {
     """
 }  
 
+process fastp_summary {
+
+    publishDir "${params.outdir}/summary/", mode: 'copy'
+
+    input:
+    file 'fastp/*' from fastp_json.collect()
+    
+    output:
+    file 'qc' into qc_dir
+
+    when:
+    run_fastp
+    
+    script:
+    """
+    python ${script_dir}/extract_fastp_info.py \\
+        --fastp-dir fastp \\
+        --outdir qc
+    
+    """
+}
+
+
 /*
-* Mapping
+* Alignment 
 */
 if (params.data_type == 'rnaseq') {
 
     if (params.aligner == 'star') {
         star_index_file = check_ref_exist(params.star_index, 'STAR index')
+        
         process star_mapping {
             tag "${sample_name}"
-            publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
+
+            cpus = 80
 
             queue 'bm'
 
@@ -189,7 +241,8 @@ if (params.data_type == 'rnaseq') {
             output:
             file "${sample_name}.bam" into unsort_bam
 
-            cpus = 40
+            when:
+            run_align
 
             script:
             sample_name = reads[0].toString() - '.trimmed.R1.fq.gz'
@@ -200,6 +253,7 @@ if (params.data_type == 'rnaseq') {
                 --readFilesIn ${reads}  \\
                 --runThreadN 40 \\
                 --twopassMode Basic \\
+                --outSAMunmapped Within \\
                 --outSAMtype BAM Unsorted  \\
                 --readFilesCommand zcat \\
                 --outSAMattrRGline  ID:${sample_name} CN:TCuni SM:${sample_name} LB:${sample_name} PI:350 PL:Illumina \\
@@ -213,7 +267,7 @@ if (params.data_type == 'rnaseq') {
         process hisat_mapping {
             tag "${sample_name}"
 
-            publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
+            cpus = 20
 
             input:
             file reads from trimmed_reads
@@ -222,7 +276,8 @@ if (params.data_type == 'rnaseq') {
             output:
             file "${sample_name}.bam" into unsort_bam
 
-            cpus = 20
+            when:
+            run_align
             
             script:
             sample_name = reads[0].toString() - '.trimmed.R1.fq.gz'
@@ -255,7 +310,7 @@ if (params.data_type == 'rnaseq') {
     process bwa_mapping {
         tag "${sample_name}"
 
-        // publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
+        cpus = 40
 
         input:
         file reads from trimmed_reads
@@ -265,7 +320,8 @@ if (params.data_type == 'rnaseq') {
         output: 
         file "${sample_name}.bam" into unsort_bam
 
-        cpus = 40
+        when:
+        run_align
 
         script:
         sample_name = reads[0].toString() - '.trimmed.R1.fq.gz'
@@ -292,7 +348,7 @@ if (params.data_type == 'rnaseq') {
 process sort_bam {
     tag "${sample_name}"
 
-    // publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
+    cpus = 8
 
     input:
     file bam from unsort_bam
@@ -300,7 +356,8 @@ process sort_bam {
     output: 
     file "${sample_name}.sort.bam" into samtools_stats_bam, to_rmdup_bam
 
-    cpus = 8
+    when:
+    run_align
 
     script:
     sample_name = bam.baseName
@@ -323,6 +380,8 @@ process reads_cov_stats {
 
     publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
 
+    cpus = 8
+
     input:
     file samtools_stats_bam from samtools_stats_bam
     file cds_bed_file from cds_bed_file
@@ -331,7 +390,8 @@ process reads_cov_stats {
     output:
     file "${sample_name}.*.stat" into reads_cov_results
 
-    cpus = 8
+    when:
+    run_align
 
     script:
     sample_name = samtools_stats_bam.baseName - '.sort'
@@ -356,13 +416,42 @@ process reads_cov_stats {
 }
 
 
+process align_summary {
+
+    publishDir "${params.outdir}/summary/", mode: 'copy'
+
+    input:
+    file 'alignment_stats/*' from reads_cov_results.collect()
+    
+    output:
+    file "alignment" into mapping_dir
+    
+    when:
+    run_align
+
+    script:
+    """
+    python ${script_dir}/reseq_mapping_stats.py \\
+        --mapping-stats-dir alignment_stats \\
+        --stats mapping \\
+        --out-dir alignment 
+
+    python ${script_dir}/reseq_mapping_stats.py \\
+        --mapping-stats-dir alignment_stats \\
+        --stats coverage \\
+        --out-dir alignment
+    """
+}
+
+
 /*
 * Reads mark duplication and recalibration
 */
 process bam_remove_duplicate {
+
     tag "${sample_name}"
 
-    // publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
+    cpus = 8
 
     input:
     file bam from to_rmdup_bam
@@ -371,7 +460,8 @@ process bam_remove_duplicate {
     file "${sample_name}.rmdup.bam" into br_rmdup_bam
     file "${sample_name}.rmdup.bai" into br_rmdup_bam_idx
   
-    cpus = 8
+    when:
+    run_snp
 
     script:
     sample_name = bam.baseName - '.sort'
@@ -396,6 +486,8 @@ if (params.data_type == 'rnaseq') {
     process SplitNCigarReads {
 
         tag "${sample_name}"
+
+        cpus = 8
             
         input:
         file bam from br_rmdup_bam
@@ -407,7 +499,8 @@ if (params.data_type == 'rnaseq') {
         file "${sample_name}.qc.bam" into qc_bam, sample_bam
         file "${sample_name}.qc.bai" into qc_bam_idx
 
-        cpus = 8
+        when:
+        run_snp
         
         script:
         sample_name = bam.baseName - '.rmdup'
@@ -426,12 +519,10 @@ if (params.data_type == 'rnaseq') {
     * bam BaseRecalibrator
     */
     process bam_BaseRecalibrator {
+
         tag "${sample_name}"
 
-        // publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
-
-        when:
-        params.known_vcf    
+        cpus = 8
 
         input:
         file bam from br_rmdup_bam
@@ -445,7 +536,8 @@ if (params.data_type == 'rnaseq') {
         file "${sample_name}.recal.table" into recal_table
         file bam into bqsr_rmdup_bam
     
-        cpus = 8
+        when:
+        params.known_vcf && run_snp
 
         script:
         sample_name = bam.baseName - '.rmdup'
@@ -466,8 +558,7 @@ if (params.data_type == 'rnaseq') {
 
         publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
 
-        when:
-        params.known_vcf
+        cpus = 8
 
         input:
         file bam from bqsr_rmdup_bam
@@ -480,7 +571,8 @@ if (params.data_type == 'rnaseq') {
         file "${sample_name}.qc.bam" into qc_bam, sample_bam
         file "${sample_name}.qc.bai" into qc_bam_idx
     
-        cpus = 8
+        when:
+        params.known_vcf && run_snp
 
         script:
         sample_name = bam.baseName - '.rmdup'
@@ -506,10 +598,10 @@ if (params.data_type == 'rnaseq') {
 *  GATK HaplotypeCaller
 */
 process gatk_HaplotypeCaller {
+
     tag "${sample_name}|${chr_name}"
 
-    when:
-    params.known_vcf        
+    cpus = 8
 
     input:
     file bam from qc_bam
@@ -522,12 +614,13 @@ process gatk_HaplotypeCaller {
     file "${sample_name}.${chr_name}.hc.g.vcf.gz" into sample_gvcf, chr_gvcf
     file "${sample_name}.${chr_name}.hc.g.vcf.gz.tbi" into sample_gvcf_index, chr_gvcf_index
     
-    cpus = 8
+    when:
+    params.known_vcf && run_snp
 
     script:
     sample_name = bam.baseName - '.qc'
-
     chr_name = bed.baseName
+
     """
     gatk HaplotypeCaller  \\
         --input ${bam} \\
@@ -551,9 +644,6 @@ process gatk_CombineGVCFs {
 
     publishDir "${params.outdir}/gvcf/by_chr/${chr_name}", mode: 'copy'
 
-    when:
-    params.known_vcf 
-
     input:
     file ('gvcf/*') from chr_gvcf.collect()
     file ('gvcf/*') from chr_gvcf_index.collect()
@@ -566,6 +656,9 @@ process gatk_CombineGVCFs {
     file "${chr_name}.g.vcf.gz" into merged_sample_gvcf
     file "${chr_name}.g.vcf.gz.tbi" into merged_sample_gvcf_index
     
+    when:
+    params.known_vcf && run_snp
+
     script:
     chr_name = bed.baseName
     """
@@ -582,12 +675,12 @@ process gatk_CombineGVCFs {
 * GATK GenotypeGVCFs
 */
 process gatk_GenotypeGVCFs {
+
     tag "Chrom: ${chr_name}"
 
     publishDir "${params.outdir}/vcf/by_chr/${chr_name}", mode: 'copy'
 
-    when:
-    params.known_vcf && !params.skip_merge
+    cpus = 8
 
     input:
     file gvcf from merged_sample_gvcf
@@ -600,7 +693,8 @@ process gatk_GenotypeGVCFs {
     file "${chr_name}.vcf.gz" into merged_sample_vcf
     file "${chr_name}.vcf.gz.tbi" into merged_sample_vcf_index
 
-    cpus = 8
+    when:
+    params.known_vcf && run_snp && !params.skip_merge
     
     script:
     chr_name = gvcf.baseName - '.g.vcf'
@@ -619,8 +713,7 @@ process gatk_GenotypeGVCFs {
 */
 process concat_vcf {
 
-    when:
-    params.known_vcf && !params.skip_merge
+    cpus = 8
 
     input:
     file ('vcf/*') from merged_sample_vcf.collect()
@@ -630,7 +723,8 @@ process concat_vcf {
     file "raw.vcf.gz" into all_sample_raw_vcf, m_all_sample_raw_vcf
     file "raw.vcf.gz.tbi" into all_sample_raw_vcf_idx, m_all_sample_raw_vcf_idx
 
-    cpus = 8
+    when:
+    params.known_vcf && run_snp && !params.skip_merge
     
     script:
     """
@@ -647,8 +741,7 @@ process concat_vcf {
 */
 process vcf_base_qual_filter {
 
-    when:
-    params.known_vcf && !params.skip_merge
+    cpus = 8
 
     input:
     file raw_vcf from all_sample_raw_vcf
@@ -658,7 +751,8 @@ process vcf_base_qual_filter {
     file "hq.vcf.gz" into all_hq_vcf, all_hq_vcf_table
     file "hq.vcf.gz.tbi" into all_hq_vcf_idx, all_hq_vcf_idx_table
 
-    cpus = 8
+    when:
+    params.known_vcf && run_snp && !params.skip_merge
     
     script:
     """
@@ -678,9 +772,6 @@ process snp_gatk_table {
 
     publishDir "${params.outdir}/vcf/all", mode: 'copy'
 
-    when:
-    params.known_vcf && params.snpEff_db && !params.skip_merge
-
     input:
     file vcf from all_hq_vcf_table
     file vcf_idx from all_hq_vcf_idx_table
@@ -690,6 +781,9 @@ process snp_gatk_table {
 
     output:
     file "vcf.gatk.table.txt" into gatk_vcf_table
+
+    when:
+    params.known_vcf && params.snpEff_db && run_snp && !params.skip_merge
 
     script:
     """
@@ -710,8 +804,7 @@ process snpEff_for_all {
 
     publishDir "${params.outdir}/vcf/all", mode: 'copy'
 
-    when:
-    params.known_vcf && params.snpEff_db && !params.skip_merge
+    cpus = 8  
 
     input:
     file raw_vcf from m_all_sample_raw_vcf
@@ -730,7 +823,8 @@ process snpEff_for_all {
     file "hq.ann.vcf.gz" into all_sample_anno_vcf, all_sample_anno_split_vcf
     file "hq.ann.vcf.gz.*" into all_sample_anno_vcf_idx, all_sample_anno_split_vcf_idx
     
-    cpus = 8  
+    when:
+    params.known_vcf && params.snpEff_db && run_snp && !params.skip_merge
 
     script:
     if (params.merge_chr_bed)
@@ -786,12 +880,12 @@ process snpEff_for_all {
 */
 
 process gatk_CombineGVCFs_by_sample {
+
     tag "${sample_name}"
 
     publishDir "${params.outdir}/gvcf/by_sample/${sample_name}", mode: 'copy'
 
-    when:
-    params.known_vcf    
+    cpus = 8
 
     input:
     file ('gvcf/*') from sample_gvcf.collect()
@@ -806,7 +900,8 @@ process gatk_CombineGVCFs_by_sample {
     file "${sample_name}.g.vcf.gz" into merged_sample_chr_gvcf
     file "${sample_name}.g.vcf.gz.tbi" into merged_sample_chr_gvcf_idx
 
-    cpus = 8
+    when:
+    params.known_vcf  && run_snp
     
     script:
     sample_name = bam.baseName - '.qc'
@@ -821,10 +916,10 @@ process gatk_CombineGVCFs_by_sample {
 }
 
 process gatk_GenotypeGVCFs_by_sample {
+
     tag "${sample_name}"
 
-    when:
-    params.known_vcf    
+    cpus = 8
 
     input:
     file gvcf from merged_sample_chr_gvcf
@@ -837,7 +932,8 @@ process gatk_GenotypeGVCFs_by_sample {
     file "${sample_name}.raw.vcf.gz" into merged_sample_chr_vcf, m_merged_sample_chr_vcf
     file "${sample_name}.raw.vcf.gz.tbi" into merged_sample_chr_vcf_index, m_merged_sample_chr_vcf_index
 
-    cpus = 8
+    when:
+    params.known_vcf && run_snp
     
     script:
     sample_name = gvcf.baseName - '.g.vcf'
@@ -861,8 +957,7 @@ process gatk_GenotypeGVCFs_by_sample {
 process vcf_base_qual_filter_by_sample {
     tag "${sample_name}"
 
-    when:
-    params.known_vcf    
+    cpus = 8
 
     input:
     file raw_vcf from merged_sample_chr_vcf
@@ -872,7 +967,8 @@ process vcf_base_qual_filter_by_sample {
     file "${sample_name}.hq.vcf.gz" into sample_hq_vcf
     file "${sample_name}.hq.vcf.gz.tbi" into sample_hq_vcf_idx
 
-    cpus = 8
+    when:
+    params.known_vcf && run_snp
     
     script:
     sample_name = raw_vcf.baseName - '.raw.vcf'
@@ -894,8 +990,7 @@ process snpEff_for_sample {
 
     publishDir "${params.outdir}/vcf/by_sample/${sample_name}", mode: 'copy'
 
-    when:
-    params.known_vcf && params.snpEff_db
+    cpus = 10
 
     input:
     file "raw_vcf/*" from m_merged_sample_chr_vcf.collect()
@@ -914,7 +1009,8 @@ process snpEff_for_sample {
     file "${sample_name}.ann.vcf.gz" into single_sample_anno_vcf
     file "${sample_name}.ann.vcf.gz.*" into single_sample_anno_vcf_idx
 
-    cpus = 10
+    when:
+    params.known_vcf && params.snpEff_db && run_snp
     
     script:
     sample_name = vcf.baseName - '.hq.vcf'
@@ -972,9 +1068,6 @@ process snp_inhouse_table {
 
     publishDir "${params.outdir}/vcf/all", mode: 'copy'
 
-    when:
-    params.known_vcf && params.snpEff_db && !params.skip_merge
-
     input:
     file vcf from all_sample_anno_vcf
     file vcf_idx from all_sample_anno_vcf_idx
@@ -984,6 +1077,9 @@ process snp_inhouse_table {
 
     output:
     file "vcf.table.txt" into om_vcf_table
+
+    when:
+    params.known_vcf && params.snpEff_db && run_snp && !params.skip_merge
 
     script:
     """   
@@ -998,39 +1094,23 @@ process snp_inhouse_table {
 * snp summary and plot
 */
 process snp_summary {
+
     publishDir "${params.outdir}/summary/", mode: 'copy'
 
-    when:
-    params.known_vcf && params.snpEff_db
-
     input:
-    file 'fastp/*' from fastp_json.collect()
+    file qc_dir from qc_dir
+    file mapping_dir from mapping_dir
     file 'snp_stats/*' from sample_vcf_stats.collect()
-    file 'alignment_stats/*' from reads_cov_results.collect()
 
     output:
-    file "alignment/mapping.summary.csv" into mapping_table
     file "snp/*csv" into snp_summary_table
-    file "reads_qc/*csv" into reads_qc_table
     file "plot" into plot_dir
+
+    when:
+    params.known_vcf && params.snpEff_db && run_snp
 
     script:
     """
-    python ${script_dir}/extract_fastp_info.py \\
-        --fastp-dir fastp \\
-        --outdir reads_qc
-
-    python ${script_dir}/reseq_mapping_stats.py \\
-        --mapping-stats-dir alignment_stats \\
-        --stats mapping \\
-        --out-dir alignment 
-
-
-    python ${script_dir}/reseq_mapping_stats.py \\
-        --mapping-stats-dir alignment_stats \\
-        --stats coverage \\
-        --out-dir alignment
-
     python ${script_dir}/reseq_snpeff_summary.py \\
         --snp-stats-dir snp_stats \\
         --out-dir snp

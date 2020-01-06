@@ -15,6 +15,7 @@ nextflow run main.nf \
     --outdir result_dir \
     --known_vcf known.vcf.gz \ # 已知 snp 位点 vcf 文件，需要建立索引
     --data_type exome \ # 数据类型 [exome, reseq, rnaseq]，默认为外显子数据
+    --run_snp \ # 运行整个 snp 分析流程， 建议按照 run_fastp, run_align, run_snp 顺序依次运行
     -profile slurm,conda \ 
     -resume
 
@@ -34,6 +35,18 @@ nextflow run main.nf \
 #### --snpEff
 >snpEff 数据库路径
 
+#### --snpEff_db
+>snpEff 数据库名称，false 代表不进行 SNP 注释
+
 #### --skip_merge
->skip generating a merged vcf of all samples
+>不生成合并所有样品的 vcf 文件
+
+#### --run_fastp
+>运行流程至 fastp 部分结束
+
+#### --run_align
+>运行流程至 alignment 部分结束
+
+#### --run_snp
+>运行完整 snp 分析流程
 

@@ -94,7 +94,7 @@ def exom_report(result_dir, proj_name, report_dir=None):
     display_dictionary['project_name'] = proj_name
 
     # add fastqc table
-    qc_table = result_dir / 'reads_qc/data.summary.csv'
+    qc_table = result_dir / 'qc/data.summary.csv'
     display_dictionary.update(
         table2dict(qc_table, 'seq', sep=',', format_func=format_reads_df))
 
