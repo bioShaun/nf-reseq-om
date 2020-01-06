@@ -35,6 +35,9 @@ nextflow run main.nf \
 #### --snpEff
 >snpEff 数据库路径
 
+#### --snpEff_db
+>snpEff 数据库名称，false 代表不进行 SNP 注释
+
 #### --skip_merge
 >不生成合并所有样品的 vcf 文件
 
