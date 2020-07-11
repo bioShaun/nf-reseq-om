@@ -487,7 +487,7 @@ if (params.data_type == 'rnaseq') {
 
         tag "${sample_name}"
 
-        cpus = 8
+        cpus = 4
             
         input:
         file bam from br_rmdup_bam
@@ -522,7 +522,7 @@ if (params.data_type == 'rnaseq') {
 
         tag "${sample_name}"
 
-        cpus = 8
+        cpus = 4
 
         input:
         file bam from br_rmdup_bam
@@ -558,7 +558,7 @@ if (params.data_type == 'rnaseq') {
 
         publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
 
-        cpus = 8
+        cpus = 4
 
         input:
         file bam from bqsr_rmdup_bam
@@ -601,7 +601,7 @@ process gatk_HaplotypeCaller {
 
     tag "${sample_name}|${chr_name}"
 
-    cpus = 8
+    cpus = 4
 
     input:
     file bam from qc_bam
@@ -664,7 +664,7 @@ process gatk_CombineGVCFs {
     """
     ls gvcf/*.${chr_name}.hc.g.vcf.gz > ${chr_name}.gvcf.list
 
-    /public/software/GATK/gatk-4.0.10.1/gatk CombineGVCFs \\
+    gatk CombineGVCFs \\
     	--output ${chr_name}.g.vcf.gz \\
 	    --reference ${refer} \\
 	    --variant ${chr_name}.gvcf.list
@@ -680,7 +680,7 @@ process gatk_GenotypeGVCFs {
 
     publishDir "${params.outdir}/vcf/by_chr/${chr_name}", mode: 'copy'
 
-    cpus = 8
+    cpus = 4
 
     input:
     file gvcf from merged_sample_gvcf
@@ -713,7 +713,7 @@ process gatk_GenotypeGVCFs {
 */
 process concat_vcf {
 
-    cpus = 8
+    cpus = 4
 
     input:
     file ('vcf/*') from merged_sample_vcf.collect()
@@ -741,7 +741,7 @@ process concat_vcf {
 */
 process vcf_base_qual_filter {
 
-    cpus = 8
+    cpus = 4
 
     input:
     file raw_vcf from all_sample_raw_vcf
@@ -804,7 +804,7 @@ process snpEff_for_all {
 
     publishDir "${params.outdir}/vcf/all", mode: 'copy'
 
-    cpus = 8  
+    cpus = 4 
 
     input:
     file raw_vcf from m_all_sample_raw_vcf
@@ -885,7 +885,7 @@ process gatk_CombineGVCFs_by_sample {
 
     publishDir "${params.outdir}/gvcf/by_sample/${sample_name}", mode: 'copy'
 
-    cpus = 8
+    cpus = 4
 
     input:
     file ('gvcf/*') from sample_gvcf.collect()
@@ -919,7 +919,7 @@ process gatk_GenotypeGVCFs_by_sample {
 
     tag "${sample_name}"
 
-    cpus = 8
+    cpus = 4
 
     input:
     file gvcf from merged_sample_chr_gvcf
@@ -957,7 +957,7 @@ process gatk_GenotypeGVCFs_by_sample {
 process vcf_base_qual_filter_by_sample {
     tag "${sample_name}"
 
-    cpus = 8
+    cpus = 4
 
     input:
     file raw_vcf from merged_sample_chr_vcf
@@ -990,7 +990,7 @@ process snpEff_for_sample {
 
     publishDir "${params.outdir}/vcf/by_sample/${sample_name}", mode: 'copy'
 
-    cpus = 10
+    cpus = 4
 
     input:
     file "raw_vcf/*" from m_merged_sample_chr_vcf.collect()
