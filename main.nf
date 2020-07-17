@@ -484,6 +484,7 @@ if (params.data_type == 'rnaseq') {
     */
 
     process SplitNCigarReads {
+        publishDir "${params.outdir}/alignment/${sample_name}", mode: 'copy'
 
         tag "${sample_name}"
 
